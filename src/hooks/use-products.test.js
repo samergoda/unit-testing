@@ -1,5 +1,3 @@
-import { describe, expect, it } from "vitest";
-
 /**
  * ========================== Hello there! ==========================
  * => You have to test the `useProducts` in 3 cases:-
@@ -23,69 +21,78 @@ import { describe, expect, it } from "vitest";
  *
  * ========================== Good luck ^-^ ==========================
  */
+
 import { renderHook, act } from "@testing-library/react-hooks";
-import { describe, it, expect } from "vitest";
-import useProducts from "./use-products"; // Adjust the path to your hook
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  afterEach,
+} from "vitest";
+import useProducts from "./use-products";
+import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
 
-  
-  describe("useProducts", () => {
-    it("The initial state where no fetch is triggered", () => {
-      const { result } = renderHook(() => useProducts());
-      const { loading, error,products, dofetch } = result.current;
-  
-      expect(error).toBe(null);
-      expect(loading).toBe(false);
-      expect(products).toBe(null);
-    });
-  
-    it("The successful state where the data has returned", async () => {
-        const mockedREsponse = { data: [{ id: "1", name: "product 1", price: 100 }] }
-        vi.spyOn(global, "fetch").mockResolvedValue({
-            json: () => Promise.resolve(mockedREsponse),
-          });
-          
+describe("useProducts", () => {
+  const mockedREsponse = {
+    data: [{ id: "1", name: "product 1", price: 100 }],
+  };
+  const server = setupServer(
+    http.get("http://localhost:7700/v1/products", () => {
+      return HttpResponse.json(mockedREsponse);
+    })
+  );
 
-        const {result} = renderHook(() => useProducts());
-        const {  startFetching } = result.current;
+  beforeAll(() => server.listen());
+  afterAll(() => server.close());
+  afterEach(() => server.resetHandlers());
 
-      await  act(async() => {
-        startFetching();
-        })
+  it("The initial state where no fetch is triggered", () => {
+    const { result } = renderHook(() => useProducts());
+    const { loading, error, products } = result.current;
 
-        const { loading, error, products } = result.current;
-
-        expect(error).toBe(null);
-        expect(loading).toBe(false);
-        expect(products).toEqual(mockedREsponse); 
-      
-        // Cleanup the mock
-        vi.restoreAllMocks();
-   
-    });
-  
-    it("The error state where the error has returned", async () => {
-        const mockedResponse = { message: "Fetch error" }; 
-      
-        vi.spyOn(global, "fetch").mockResolvedValue({
-          json: () => Promise.resolve(mockedResponse),
-        });
-      
-        const { result } = renderHook(() => useProducts());
-      
-        const { startFetching } = result.current;
-      
-        await act(async () => {
-          startFetching();
-        });
-      
-        const { loading, error, products } = result.current;
-      
-        expect(error).toBe("Fetch error"); 
-        expect(loading).toBe(false); 
-        expect(products).toBe(null); 
-      
-        // Cleanup the mock
-        vi.restoreAllMocks();
-      });
-      
+    expect(error).toBe(null);
+    expect(loading).toBe(false);
+    expect(products).toBe(null);
   });
+
+  it("The successful state where the data has returned", async () => {
+    const { result } = renderHook(() => useProducts());
+    const { startFetching } = result.current;
+
+    await act(async () => {
+      startFetching();
+    });
+
+    const { loading, error, products } = result.current;
+
+    expect(error).toBe(null);
+    expect(loading).toBe(false);
+    expect(products).toEqual(mockedREsponse);
+  });
+
+  it("The error state where the error has returned", async () => {
+    server.use(
+      http.get("http://localhost:7700/v1/products", () => {
+        return HttpResponse.json({ message: "Fetch error" });
+      })
+    );
+  
+    const { result } = renderHook(() => useProducts());
+    const { startFetching } = result.current;
+  
+    await act(async () => {
+      startFetching();
+    });
+  
+  
+    const { loading, error, products } = result.current;
+  
+    expect(error).toBe("Fetch error"); 
+    expect(loading).toBe(false);
+    expect(products).toBe(null);
+  });
+  
+});
